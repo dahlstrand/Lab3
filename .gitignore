@@ -1,0 +1,4 @@
+venv/
+.idea/
+.DS_Store
+numpy-1.11.2/
