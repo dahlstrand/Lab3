@@ -104,12 +104,16 @@ class CardView(QGraphicsView):
         self.update_view()
 
     def update_view(self):
-        scale = (self.viewport().height()-2*self.padding)/313
+        scale_h = (self.viewport().height()-2*self.padding)/313
+        print(scale_h)
+        scale_w = (self.viewport().width()-2*self.padding)/313
+        print(scale_w)
         self.resetTransform()
-        self.scale(scale, scale)
+        self.scale(scale_h, scale_h)
         # Put the scene bounding box
-        self.setSceneRect(-self.padding//scale, -self.padding//scale,
-                          self.viewport().width()//scale, self.viewport().height()//scale)
+        self.setSceneRect(-self.padding//scale_h, -self.padding//scale_h,
+                          self.viewport().width()//scale_h, self.viewport().height()//scale_h)
+
 
     def resizeEvent(self, painter):
         # This method is called when the window is resized.
@@ -118,37 +122,21 @@ class CardView(QGraphicsView):
         self.update_view()
         super().resizeEvent(painter)
 
-    # This is the Controller part of the GUI, handling input events that modify the Model
-#    def mousePressEvent(self, event):
-        # We can check which item, if any, that we clicked on by fetching the scene items (neat!)
-#        pos = self.mapToScene(event.pos())
-#        item = self.scene.itemAt(pos, self.transform())
-#        if item is not None:
-            # Report back that the user clicked on the card at given position:
-            # The model can choose to do whatever it wants with this information.
-#            self.model.clicked_position(item.position)
+    # # This is the Controller part of the GUI, handling input events that modify the Model
+    # def mousePressEvent(self, event):
+    #     # We can check which item, if any, that we clicked on by fetching the scene items (neat!)
+    #     pos = self.mapToScene(event.pos())
+    #     item = self.scene.itemAt(pos, self.transform())
+    #     if item is not None:
+    #         pass
+    #         # Report back that the user clicked on the card at given position:
+    #         # The model can choose to do whatever it wants with this information.
+    #         #self.model.clicked_position(item.position)
 
 
     # You can remove these events if you don't need them.
     def mouseDoubleClickEvent(self, event):
         self.model.flip()  # Another possible event. Lets add it to the flip functionality for fun!
-
-
-# A trivial card class (you should use the stuff you made in your library instead!
-# class MySimpleCard:
-#     def __init__(self, value, suit):
-#         self.value = value
-#         self.suit = suit
-
-
-# You have made a class similar to this (hopefully):
-# class Hand:
-#     def __init__(self):
-#         # Lets use some hardcoded values for most of this to start with
-#         self.cards = [MySimpleCard(13, 2), MySimpleCard(7, 0), MySimpleCard(13, 1)]
-#
-#     def add_card(self, card):
-#         self.cards.append(card)
 
 
 # We can extend this class to create a model, which updates the view whenever it has changed.
@@ -189,11 +177,10 @@ class HandModel(Hand, QObject):
         self.data_changed.emit()
 
 
-
 class buttons(QGraphicsView):
     """ A View widget that represents the table area displaying a players cards. """
 
-    def __init__(self, button_model, button_spacing=250, padding=10):
+    def __init__(self, button_model, button_spacing=50, padding=10):
         """
         Initializes the view to display the content of the given model
         :param cards_model: A model that represents a set of cards.
@@ -203,20 +190,18 @@ class buttons(QGraphicsView):
         """
         self.scene = TableScene()
         super().__init__(self.scene)
-
         self.model = button_model
         self.button_spacing = button_spacing
         self.padding = padding
-
-        # Whenever the this window should update, it should call the "change_cards" method.
-        # This can, for example, be done by connecting it to a signal.
-        # The view can listen to changes:
-        button_model.data_changed.connect(self.change_cards)
-        # It is completely optional if you want to do it this way, or have some overreaching Player/GameState
-        # call the "change_cards" method instead. z
-
+        self.layout = QVBoxLayout()
         # Add the cards the first time around to represent the initial state.
-        self.change_cards()
+        for i, button in enumerate(self.model):
+            button.resize(100, 32)
+            button.move(50, i*button_spacing)
+            self.layout.addWidget(button)
+            button.clicked.connect(pressed_button)
+            #button.setPos(button.position * self.button_spacing, 0)
+        self.update_view()
 
     def update_view(self):
         scale = (self.viewport().height()-2*self.padding)/313
@@ -233,34 +218,43 @@ class buttons(QGraphicsView):
         self.update_view()
         super().resizeEvent(painter)
 
-    # This is the Controller part of the GUI, handling input events that modify the Model
-    def mousePressEvent(self, event):
-        # We can check which item, if any, that we clicked on by fetching the scene items (neat!)
-        pos = self.mapToScene(event.pos())
-        item = self.scene.itemAt(pos, self.transform())
-        if item is not None:
-            # Report back that the user clicked on the card at given position:
-            # The model can choose to do whatever it wants with this information.
-            self.model.clicked_position(item.position)
 
-
+def pressed_button():
+    print("You pressed a button!")
 
 # Lets test it out
 app = QApplication(sys.argv)
 
-hand = HandModel()
-hand.add_card(NumberedCard(3, Suits.clubs))
-hand.add_card(NumberedCard(4, Suits.clubs))
-hand.add_card(NumberedCard(5, Suits.clubs))
+hand1 = HandModel()
+hand1.add_card(NumberedCard(3, Suits.clubs))
+hand1.add_card(NumberedCard(4, Suits.clubs))
+hand2 = HandModel()
+hand2.add_card(NumberedCard(7, Suits.clubs))
+hand2.add_card(NumberedCard(6, Suits.clubs))
 
-card_view = CardView(hand)
+card_view1 = CardView(hand1)
+card_view2 = CardView(hand2)
+# card_view1.setMaximumSize(2000, 300)
+# card_view1.setMinimumWidth(500)
+
 
 # Creating a small demo window to work with, and put the card_view inside:
-box = QVBoxLayout()
-box.addWidget(card_view)
-player1_view = QGroupBox("Player 1")
-player1_view.setLayout(box)
-player1_view.show()
+layout = QHBoxLayout()
+button_box = QVBoxLayout()
 
+button = [QPushButton("Check/Call"), QPushButton("Fold"), QPushButton("Raise")]
+butt = buttons(button)
+line_edit = QLineEdit("Amount: ")
+button_box.addLayout(butt.layout)
+button_box.addWidget(line_edit)
+layout.addWidget(card_view1)
+layout.addLayout(button_box)
+layout.addWidget(card_view2)
+
+
+game_view = QWidget()#QGroupBox("Texas Hold'em")
+game_view.setLayout(layout)
+game_view.setGeometry(300, 300, 1200, 550)
+game_view.show()
 
 app.exec_()
