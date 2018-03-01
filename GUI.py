@@ -288,6 +288,7 @@ class TexasHold(QObject):
         if not self.which_player:       # if player1 active
             if self.player2_has_raised:
                 self.player2_has_raised = 0
+                print("self.bet i check/call", self.bet)
                 self.total[0] -= self.bet
                 self.pot += self.bet
                 self.new_deal()
@@ -308,19 +309,19 @@ class TexasHold(QObject):
 
     def raise_button(self):
         print("Clicked raise")
-        # if not self.which_player:
-        #     self.bet = self.total[2]
-        #     self.total[0] -= self.bet
-        #     self.pot += self.bet
-        # else:
-        #     self.bet = self.total[2]
-        #     self.total[1] -= self.bet
-        #     self.pot += self.bet
-        if self.which_player:       # If player 2 raises:
-            self.player2_has_raised = 1
-        self.bet = self.total[2]
-        self.total[self.which_player] -= self.bet
-        self.pot += self.bet
+        if not self.which_player:
+            self.bet = self.total[2]
+            self.total[0] -= self.bet
+            self.pot += self.bet
+        else:
+            self.bet = self.total[2]-self.bet
+            self.total[1] -= self.total[2]
+            self.pot += self.bet
+        # if self.which_player:       # If player 2 raises:
+        #     self.player2_has_raised = 1
+        # self.bet = self.total[2]
+        # self.total[self.which_player] -= self.bet
+        # self.pot += self.bet
         self.new_total.emit()
         self.change_player()
 
