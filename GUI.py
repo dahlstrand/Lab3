@@ -105,9 +105,7 @@ class CardView(QGraphicsView):
 
     def update_view(self):
         scale_h = (self.viewport().height()-2*self.padding)/313
-        print(scale_h)
         scale_w = (self.viewport().width()-2*self.padding)/313
-        print(scale_w)
         self.resetTransform()
         self.scale(scale_h, scale_h)
         # Put the scene bounding box
@@ -259,7 +257,7 @@ class TexasHold(QObject):
         self.bet = 0
         self.pot = 0
         self.total = self.money + [0]
-        print("self.total: ", self.total)
+        #print("self.total: ", self.total)
         self.which_player = 0
         self.player2_has_raised = 0
 
@@ -284,7 +282,7 @@ class TexasHold(QObject):
                 self.player2_has_raised = 0
                 self.total[0] -= self.bet
                 self.pot += self.bet
-                self.new_round()
+                self.new_deal()
             else:
                 self.change_player()
             self.new_total.emit()
@@ -292,11 +290,11 @@ class TexasHold(QObject):
             self.total[1] -= self.bet
             self.pot += self.bet
             self.new_total.emit()
-            self.new_round()
+            self.new_deal()
 
     def fold_button(self):
         self.total[not self.which_player] += self.pot
-        self.new_round()
+        self.new_deal()
 
         print("Clicked fold")
 
@@ -324,14 +322,15 @@ class TexasHold(QObject):
         self.new_total.emit()
 
     def change_player(self):
-        print("Changing player")
+        #print("Changing player")
         if not self.which_player:       # if player 1 active
             self.which_player = 1
         else:
             self.which_player = 0
-        print(self.which_player)
+        print("Player active: ", self.which_player+1)
+        self.new_total.emit()
 
-    def new_round(self):
+    def new_deal(self):
         print("New round!")
         self.bet = 0
         if len(self.dealer) == 0:
@@ -343,13 +342,29 @@ class TexasHold(QObject):
             self.deck.take_top()
             self.dealer.add_card(self.deck.take_top())
             self.which_player = 0
-        elif len(self.dealer) == 5:
-            pass
         else:
             self.winner_round()
+            self.check_winner_game()
+            self.new_round()
             self.new_total.emit()
             #self.__init__(self.players[0], self.players[1], self.total[0], self.total[1])
-            self.dealer.__init__()
+        print("Player active: ", self.which_player+1)
+
+    def new_round(self):
+        self.pot = 0
+        self.bet = 0
+        self.deck = StandardDeck()
+        self.deck.shuffle()
+        print(len(self.deck.cards))
+        self.which_player = 0
+        self.player2_has_raised = 0
+        self.dealer = DealerModel()
+        self.hand1 = HandModel()
+        self.hand2 = HandModel()
+        self.hand1.add_card(self.deck.take_top())
+        self.hand2.add_card(self.deck.take_top())
+        self.hand1.add_card(self.deck.take_top())
+        self.hand2.add_card(self.deck.take_top())
 
 
     def winner_round(self):
