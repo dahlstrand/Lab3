@@ -169,6 +169,10 @@ class HandModel(Hand, QObject):
         super().add_card(card)
         self.data_changed.emit()
 
+    def empty_hand(self):
+        super().remove_card(list(range(len(self.cards))))
+        self.data_changed.emit()
+
 
 class DealerModel(Hand, QObject):
     data_changed = pyqtSignal()
@@ -196,6 +200,10 @@ class DealerModel(Hand, QObject):
 
     def add_card(self, card):
         super().add_card(card)
+        self.data_changed.emit()
+
+    def empty_dealer(self):
+        super().remove_card(list(range(len(self.cards))))
         self.data_changed.emit()
 
 
@@ -347,7 +355,6 @@ class TexasHold(QObject):
             self.check_winner_game()
             self.new_round()
             self.new_total.emit()
-            #self.__init__(self.players[0], self.players[1], self.total[0], self.total[1])
         print("Player active: ", self.which_player+1)
 
     def new_round(self):
@@ -355,35 +362,30 @@ class TexasHold(QObject):
         self.bet = 0
         self.deck = StandardDeck()
         self.deck.shuffle()
-        print(len(self.deck.cards))
         self.which_player = 0
         self.player2_has_raised = 0
-        self.dealer = DealerModel()
-        self.hand1 = HandModel()
-        self.hand2 = HandModel()
+        self.dealer.empty_dealer()
+        self.hand1.empty_hand()
+        self.hand2.empty_hand()
         self.hand1.add_card(self.deck.take_top())
         self.hand2.add_card(self.deck.take_top())
         self.hand1.add_card(self.deck.take_top())
         self.hand2.add_card(self.deck.take_top())
-
 
     def winner_round(self):
-        besthand1 = self.hand1.best_poker_hand(self.dealer.cards)
-        besthand2 = self.hand2.best_poker_hand(self.dealer.cards)
+        best_hand1 = self.hand1.best_poker_hand(self.dealer.cards)
+        best_hand2 = self.hand2.best_poker_hand(self.dealer.cards)
         print("I winner_round")
-        if besthand1 < besthand2:
+        if best_hand1 < best_hand2:
             print("Hand 2 är bättre än 1")
             self.total[1] += self.pot
-            #self.new_total.emit()
-        elif besthand2 < besthand1:
+        elif best_hand2 < best_hand1:
             print("Hand 1 är bättre än 2")
             self.total[0] += self.pot
-            #self.new_total.emit()
         else:
             print("shit hit the fan")
             self.total[0] += self.pot/2
             self.total[1] += self.pot/2
-            #self.new_total.emit()
         self.pot = 0
 
     def check_winner_game(self):
@@ -404,7 +406,6 @@ class GameView(QWidget):
         card_view3 = CardView(game_model.dealer)
         card_view1.setMaximumSize(500, 500)
         card_view2.setMaximumSize(500, 500)
-
 
         # Creating a small demo window to work with, and put the card_view inside:
 
@@ -432,8 +433,8 @@ class GameView(QWidget):
         line_edit = QLineEdit("Amount: ")
         self.sld = QSlider(Qt.Horizontal)
 
-        self.sld.setMinimum(0)
-        self.sld.setMaximum(1000)
+        #self.sld.setMinimum(0)
+        #self.sld.setMaximum(1000)
         self.sld.setValue(0)
         self.sld.setPageStep(50)
 
