@@ -278,7 +278,7 @@ sld.setValue(500)
 sld.setPageStep(50)
 
 sld.valueChanged.connect(slider_val)
-sld.sliderReleased.connect(slider_val)
+#sld.sliderReleased.connect(slider_val)
 
 button_box.addLayout(butt.layout)
 button_box.addWidget(line_edit)
