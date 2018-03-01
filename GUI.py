@@ -222,6 +222,11 @@ class buttons(QGraphicsView):
 def pressed_button():
     print("You pressed a button!")
 
+
+def slider_val(self):
+    print(str(sld.value()))
+
+
 # Lets test it out
 app = QApplication(sys.argv)
 
@@ -232,29 +237,68 @@ hand2 = HandModel()
 hand2.add_card(NumberedCard(7, Suits.clubs))
 hand2.add_card(NumberedCard(6, Suits.clubs))
 
+hand3 = HandModel()
+hand3.add_card(NumberedCard(10, Suits.clubs))
+hand3.add_card(NumberedCard(9, Suits.clubs))
+
 card_view1 = CardView(hand1)
 card_view2 = CardView(hand2)
-# card_view1.setMaximumSize(2000, 300)
-# card_view1.setMinimumWidth(500)
+card_view3 = CardView(hand3)
+card_view1.setMaximumSize(500, 500)
+card_view2.setMaximumSize(500, 500)
 
-
+money1 = 1000
+money2 = 1000
 # Creating a small demo window to work with, and put the card_view inside:
 layout = QHBoxLayout()
 button_box = QVBoxLayout()
+table_layout = QVBoxLayout()
+player1 = QVBoxLayout()
+player1.addWidget(QLabel("Player 1"))
+player1.addWidget(card_view1)
+player1_money_text = "Your amount of money: " + str(money1)
+player1.addWidget(QLabel(player1_money_text))
+player2 = QVBoxLayout()
+player2.addWidget(QLabel("Player 2"))
+player2.addWidget(card_view2)
+player2_money_text = "Your amount of money: " + str(money2)
+player2.addWidget(QLabel(player1_money_text))
+dealer = QVBoxLayout()
+dealer.addWidget(QLabel("Dealer"))
+dealer.addWidget(card_view3)
+
 
 button = [QPushButton("Check/Call"), QPushButton("Fold"), QPushButton("Raise")]
 butt = buttons(button)
 line_edit = QLineEdit("Amount: ")
+sld = QSlider(Qt.Horizontal)
+sld.setMinimum(0)
+sld.setMaximum(1000)
+sld.setValue(500)
+sld.setPageStep(50)
+
+sld.valueChanged.connect(slider_val)
+sld.sliderReleased.connect(slider_val)
+
 button_box.addLayout(butt.layout)
 button_box.addWidget(line_edit)
-layout.addWidget(card_view1)
+
+sldLabel = QLabel("bet: {}".format(1000))
+button_box.addWidget(sldLabel)
+button_box.addWidget(sld)
+
+layout.addLayout(player1)
 layout.addLayout(button_box)
-layout.addWidget(card_view2)
+layout.addLayout(player2)
+table_layout.addLayout(dealer)
+table_layout.addLayout(layout)
+
 
 
 game_view = QWidget()#QGroupBox("Texas Hold'em")
-game_view.setLayout(layout)
+game_view.setLayout(table_layout)
 game_view.setGeometry(300, 300, 1200, 550)
+game_view.setWindowTitle("Texas Hold'em")
 game_view.show()
 
 app.exec_()
