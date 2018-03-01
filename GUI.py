@@ -86,7 +86,7 @@ class CardView(QGraphicsView):
             # The ID of the card in the dictionary of images is a tuple with (value, suit), both integers
             # TODO: YOU MUST CORRECT THE EXPRESSION TO MATCH YOUR PLAYING CARDS!!!
             # TODO: See the __read_cards method for what mapping are used.
-            graphics_key = (card.value, card.suit)
+            graphics_key = (card.get_value(), card.get_suit())
             renderer = self.back_card if self.model.flipped(i) else self.all_cards[graphics_key]
             c = CardItem(renderer, i)
             # Shadow effects are cool!
@@ -167,10 +167,34 @@ class HandModel(Hand, QObject):
         # Might be different for other games though!
         return self.flipped_cards
 
-    def clicked_position(self, i):
-        # Mark the card as position "i" to be thrown away
-        self.marked_cards[i] = not self.marked_cards[i]
+    def add_card(self, card):
+        super().add_card(card)
         self.data_changed.emit()
+
+
+class DealerModel(Hand, QObject):
+    data_changed = pyqtSignal()
+
+    def __init__(self):
+        Hand.__init__(self)
+        QObject.__init__(self)
+
+        # Additional state needed by the UI, keeping track of the selected cards:
+        self.marked_cards = [False]*len(self.cards)
+        self.flipped_cards = False
+
+    def marked(self, i):
+        return self.marked_cards[i]
+
+    def flip(self):
+        # Flips over the cards (to hide them)
+        self.flipped_cards = self.flipped_cards
+        self.data_changed.emit()
+
+    def flipped(self, i):
+        # This model only flips all or no cards, so we don't care about the index.
+        # Might be different for other games though!
+        return self.flipped_cards
 
     def add_card(self, card):
         super().add_card(card)
@@ -199,7 +223,7 @@ class buttons(QGraphicsView):
             button.resize(100, 32)
             button.move(50, i*button_spacing)
             self.layout.addWidget(button)
-            button.clicked.connect(pressed_button)
+            #button.clicked.connect(pressed_button)
             #button.setPos(button.position * self.button_spacing, 0)
         self.update_view()
 
@@ -219,86 +243,246 @@ class buttons(QGraphicsView):
         super().resizeEvent(painter)
 
 
-def pressed_button():
-    print("You pressed a button!")
+#def pressed_button():
+#    print("You pressed a button!")
 
 
-def slider_val(self):
-    print(str(sld.value()))
+
+class TexasHold(QObject):
+    new_total = pyqtSignal()
+    winner = pyqtSignal(str, )
+
+    def __init__(self, player1, player2, money1, money2):
+        super().__init__()
+        self.players = [player1, player2]
+        self.money = [money1, money2]
+        self.bet = 0
+        self.pot = 0
+        self.total = self.money + [0]
+        print("self.total: ", self.total)
+        self.which_player = 0
+        self.player2_has_raised = 0
+
+        self.deck = StandardDeck()
+        self.deck.shuffle()
+
+        self.hand1 = HandModel()
+        self.hand2 = HandModel()
+        self.dealer = DealerModel()
+        self.hand1.add_card(self.deck.take_top())
+        self.hand2.add_card(self.deck.take_top())
+        self.hand1.add_card(self.deck.take_top())
+        self.hand2.add_card(self.deck.take_top())
+
+        #self.dealer.add_card(NumberedCard(10, Suits.clubs))
+        #self.dealer.add_card(NumberedCard(9, Suits.clubs))
+
+    def check_call_button(self):
+        print("Clicked check/call")
+        if not self.which_player:       # if player1 active
+            if self.player2_has_raised:
+                self.player2_has_raised = 0
+                self.total[0] -= self.bet
+                self.pot += self.bet
+                self.new_round()
+            else:
+                self.change_player()
+            self.new_total.emit()
+        else:
+            self.total[1] -= self.bet
+            self.pot += self.bet
+            self.new_total.emit()
+            self.new_round()
+
+    def fold_button(self):
+        self.total[not self.which_player] += self.pot
+        self.new_round()
+
+        print("Clicked fold")
+
+    def raise_button(self):
+        print("Clicked raise")
+        # if not self.which_player:
+        #     self.bet = self.total[2]
+        #     self.total[0] -= self.bet
+        #     self.pot += self.bet
+        # else:
+        #     self.bet = self.total[2]
+        #     self.total[1] -= self.bet
+        #     self.pot += self.bet
+        if self.which_player:       # If player 2 raises:
+            self.player2_has_raised = 1
+        self.bet = self.total[2]
+        self.total[self.which_player] -= self.bet
+        self.pot += self.bet
+        self.new_total.emit()
+        self.change_player()
+
+    def slider(self, value):
+        #print("SLIDER: ")
+        self.total[2] = value
+        self.new_total.emit()
+
+    def change_player(self):
+        print("Changing player")
+        if not self.which_player:       # if player 1 active
+            self.which_player = 1
+        else:
+            self.which_player = 0
+        print(self.which_player)
+
+    def new_round(self):
+        print("New round!")
+        self.bet = 0
+        if len(self.dealer) == 0:
+            self.deck.take_top()
+            for i in range(3):
+                self.dealer.add_card(self.deck.take_top())
+            self.which_player = 0
+        elif 0 < len(self.dealer) < 5:
+            self.deck.take_top()
+            self.dealer.add_card(self.deck.take_top())
+            self.which_player = 0
+        elif len(self.dealer) == 5:
+            pass
+        else:
+            self.winner_round()
+            self.new_total.emit()
+            #self.__init__(self.players[0], self.players[1], self.total[0], self.total[1])
+            self.dealer.__init__()
+
+
+    def winner_round(self):
+        besthand1 = self.hand1.best_poker_hand(self.dealer.cards)
+        besthand2 = self.hand2.best_poker_hand(self.dealer.cards)
+        print("I winner_round")
+        if besthand1 < besthand2:
+            print("Hand 2 är bättre än 1")
+            self.total[1] += self.pot
+            #self.new_total.emit()
+        elif besthand2 < besthand1:
+            print("Hand 1 är bättre än 2")
+            self.total[0] += self.pot
+            #self.new_total.emit()
+        else:
+            print("shit hit the fan")
+            self.total[0] += self.pot/2
+            self.total[1] += self.pot/2
+            #self.new_total.emit()
+        self.pot = 0
+
+    def check_winner_game(self):
+        if self.total[0] == 0:
+            self.winner.emit(self.players[1] + " won!")
+            print("WIN")
+        elif self.total[1] == 0:
+            self.winner.emit(self.players[0] + " won!")
+
+
+class GameView(QWidget):
+
+    def __init__(self, game_model):
+        super().__init__()
+
+        card_view1 = CardView(game_model.hand1)
+        card_view2 = CardView(game_model.hand2)
+        card_view3 = CardView(game_model.dealer)
+        card_view1.setMaximumSize(500, 500)
+        card_view2.setMaximumSize(500, 500)
+
+
+        # Creating a small demo window to work with, and put the card_view inside:
+
+        self.labels = [QLabel(), QLabel(), QLabel()]
+
+        layout = QHBoxLayout()
+        button_box = QVBoxLayout()
+        table_layout = QVBoxLayout()
+        player1 = QVBoxLayout()
+        player1.addWidget(QLabel(game_model.players[0]))
+        player1.addWidget(card_view1)
+        #player1_money_text = "Your amount of money: " + str(money1)
+        player1.addWidget(self.labels[0]) #QLabel(player1_money_text))
+        player2 = QVBoxLayout()
+        player2.addWidget(QLabel(game_model.players[1]))
+        player2.addWidget(card_view2)
+        #player2_money_text = "Your amount of money: " + str(money2)
+        player2.addWidget(self.labels[1]) #QLabel(player2_money_text))
+        dealer = QVBoxLayout()
+        dealer.addWidget(QLabel("Dealer"))
+        dealer.addWidget(card_view3)
+
+        button = [QPushButton("Check/Call"), QPushButton("Fold"), QPushButton("Raise")]
+        butt = buttons(button)
+        line_edit = QLineEdit("Amount: ")
+        self.sld = QSlider(Qt.Horizontal)
+
+        self.sld.setMinimum(0)
+        self.sld.setMaximum(1000)
+        self.sld.setValue(0)
+        self.sld.setPageStep(50)
+
+        #self.sld.valueChanged.connect(slider_val)
+        # sld.sliderReleased.connect(slider_val)
+
+        button_box.addLayout(butt.layout)
+        button_box.addWidget(line_edit)
+
+        #sldLabel = #QLabel("bet: {}".format(1000))
+        button_box.addWidget(self.labels[2])#sldLabel)
+        button_box.addWidget(self.sld)
+
+        layout.addLayout(player1)
+        layout.addLayout(button_box)
+        layout.addLayout(player2)
+        table_layout.addLayout(dealer)
+        table_layout.addLayout(layout)
+
+        self.setLayout(table_layout)
+        self.setGeometry(300, 300, 1200, 550)
+        self.setWindowTitle("Texas Hold'em")
+        self.show()
+
+        # Model!
+        self.game = game_model
+        self.update_labels()
+        game_model.new_total.connect(self.update_labels)
+        game_model.winner.connect(self.alert_winner)
+
+        # controller
+        def check_call_click():
+            game_model.check_call_button()
+        button[0].clicked.connect(check_call_click)
+
+        def fold_click():
+            game_model.fold_button()
+        button[1].clicked.connect(fold_click)
+
+        def raise_click():
+            game_model.raise_button()
+        button[2].clicked.connect(raise_click)
+
+        def slider():
+            game_model.slider(self.sld.value())
+        self.sld.valueChanged.connect(slider)
+
+    def update_labels(self):
+        for i in range(len(self.labels)):
+            self.labels[i].setText(str(self.game.total[i]))
+            #print("It is connected!!: " + str(self.game.total[i]))
+        self.sld.setMaximum(self.game.total[self.game.which_player])
+        self.sld.setMinimum(self.game.bet)
+
+    def alert_winner(self, text):
+        msg = QMessageBox()
+        msg.setText(text)
+        msg.exec()
+
 
 
 # Lets test it out
 app = QApplication(sys.argv)
-
-hand1 = HandModel()
-hand1.add_card(NumberedCard(3, Suits.clubs))
-hand1.add_card(NumberedCard(4, Suits.clubs))
-hand2 = HandModel()
-hand2.add_card(NumberedCard(7, Suits.clubs))
-hand2.add_card(NumberedCard(6, Suits.clubs))
-
-hand3 = HandModel()
-hand3.add_card(NumberedCard(10, Suits.clubs))
-hand3.add_card(NumberedCard(9, Suits.clubs))
-
-card_view1 = CardView(hand1)
-card_view2 = CardView(hand2)
-card_view3 = CardView(hand3)
-card_view1.setMaximumSize(500, 500)
-card_view2.setMaximumSize(500, 500)
-
-money1 = 1000
-money2 = 1000
-# Creating a small demo window to work with, and put the card_view inside:
-layout = QHBoxLayout()
-button_box = QVBoxLayout()
-table_layout = QVBoxLayout()
-player1 = QVBoxLayout()
-player1.addWidget(QLabel("Player 1"))
-player1.addWidget(card_view1)
-player1_money_text = "Your amount of money: " + str(money1)
-player1.addWidget(QLabel(player1_money_text))
-player2 = QVBoxLayout()
-player2.addWidget(QLabel("Player 2"))
-player2.addWidget(card_view2)
-player2_money_text = "Your amount of money: " + str(money2)
-player2.addWidget(QLabel(player1_money_text))
-dealer = QVBoxLayout()
-dealer.addWidget(QLabel("Dealer"))
-dealer.addWidget(card_view3)
-
-
-button = [QPushButton("Check/Call"), QPushButton("Fold"), QPushButton("Raise")]
-butt = buttons(button)
-line_edit = QLineEdit("Amount: ")
-sld = QSlider(Qt.Horizontal)
-sld.setMinimum(0)
-sld.setMaximum(1000)
-sld.setValue(500)
-sld.setPageStep(50)
-
-sld.valueChanged.connect(slider_val)
-#sld.sliderReleased.connect(slider_val)
-
-button_box.addLayout(butt.layout)
-button_box.addWidget(line_edit)
-
-sldLabel = QLabel("bet: {}".format(1000))
-button_box.addWidget(sldLabel)
-button_box.addWidget(sld)
-
-layout.addLayout(player1)
-layout.addLayout(button_box)
-layout.addLayout(player2)
-table_layout.addLayout(dealer)
-table_layout.addLayout(layout)
-
-
-
-game_view = QWidget()#QGroupBox("Texas Hold'em")
-game_view.setLayout(table_layout)
-game_view.setGeometry(300, 300, 1200, 550)
-game_view.setWindowTitle("Texas Hold'em")
-game_view.show()
+game = TexasHold("ett", "två", 1000, 1000)
+view = GameView(game)
 
 app.exec_()
