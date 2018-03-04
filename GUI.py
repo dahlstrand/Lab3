@@ -1,15 +1,9 @@
-#from PySide.QtCore import *
-#from PySide.QtGui import *
-#from PySide.QtSvg import *
-#from PyQt4.QtCore import *
-#from PyQt4.QtGui import *
-#from PyQt4.QtSvg import *
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtSvg import *
 from PyQt5.QtWidgets import *
 import sys
-#import pycards as pc
 from card_lib import *
 
 # NOTE: This is just given as an example of how to use CardView.
@@ -97,15 +91,13 @@ class CardView(QGraphicsView):
             c.setGraphicsEffect(shadow)
             # Place the cards on the default positions
             c.setPos(c.position * self.card_spacing, 0)
-            # Sets the opacity of cards if they are marked.
-            #c.setOpacity(0.5 if self.model.marked(c.position) else 1.0)
             self.scene.addItem(c)
 
         self.update_view()
 
     def update_view(self):
         scale_h = (self.viewport().height()-2*self.padding)/313
-        scale_w = (self.viewport().width()-2*self.padding)/313
+        # scale_w = (self.viewport().width()-2*self.padding)/313
         self.resetTransform()
         self.scale(scale_h, scale_h)
         # Put the scene bounding box
@@ -119,18 +111,6 @@ class CardView(QGraphicsView):
         # QGraphicsView automatically re-paints everything when we modify the scene.
         self.update_view()
         super().resizeEvent(painter)
-
-    # # This is the Controller part of the GUI, handling input events that modify the Model
-    # def mousePressEvent(self, event):
-    #     # We can check which item, if any, that we clicked on by fetching the scene items (neat!)
-    #     pos = self.mapToScene(event.pos())
-    #     item = self.scene.itemAt(pos, self.transform())
-    #     if item is not None:
-    #         pass
-    #         # Report back that the user clicked on the card at given position:
-    #         # The model can choose to do whatever it wants with this information.
-    #         #self.model.clicked_position(item.position)
-
 
     # You can remove these events if you don't need them.
     def mouseDoubleClickEvent(self, event):
@@ -254,13 +234,9 @@ class buttons(QGraphicsView):
 class TexasHold(QObject):
     new_total = pyqtSignal()
     winner = pyqtSignal(str, )
-    read_players = pyqtSignal()
 
     def __init__(self, player1="Player 1", player2="Player 2", money1=1000, money2=1000):
         super().__init__()
-        self.read_players.emit()
-        print(player1)
-        print(player2)
         self.players = [player1, player2]
         self.money = [money1, money2]
         self.bet = 0
@@ -273,7 +249,9 @@ class TexasHold(QObject):
         self.deck.shuffle()
 
         self.hand1 = HandModel()
+        self.hand1.flippable = True
         self.hand2 = HandModel()
+        self.hand2.flippable = False
         self.dealer = DealerModel()
         self.hand1.add_card(self.deck.take_top())
         self.hand2.add_card(self.deck.take_top())
@@ -286,6 +264,10 @@ class TexasHold(QObject):
                 self.player2_has_raised = 0
                 self.total[0] -= self.bet
                 self.pot += self.bet
+                if not self.hand1.flipped(0):
+                    self.hand1.flip()
+                self.hand1.flippable = False
+                self.hand2.flippable = True
                 self.new_deal()
             else:
                 self.change_player()
@@ -321,15 +303,26 @@ class TexasHold(QObject):
 
     def change_player(self):
         if not self.which_player:       # if player 1 active
+            if not self.hand1.flipped(0):
+                self.hand1.flip()
+            self.hand1.flippable = False
+            self.hand2.flippable = True
             self.which_player = 1
-            
         else:
+            if not self.hand2.flipped(0):
+                self.hand2.flip()
+            self.hand2.flippable = False
+            self.hand1.flippable = True
             self.which_player = 0
         self.new_total.emit()
 
     def new_deal(self):
         # print("New round!")
         self.bet = 0
+        if not self.hand2.flipped(0):
+            self.hand2.flip()
+        self.hand1.flippable = True
+        self.hand2.flippable = False
         if len(self.dealer) == 0:
             self.deck.take_top()
             for i in range(3):
@@ -346,6 +339,13 @@ class TexasHold(QObject):
         self.new_total.emit()
 
     def new_round(self):
+        if not self.hand1.flipped(0):
+            self.hand1.flippable = True
+            self.hand1.flip()
+        if not self.hand2.flipped(0):
+            self.hand2.flippable = True
+            self.hand2.flip()
+        self.hand2.flippable = False
         self.pot = 0
         self.bet = 0
         self.deck = StandardDeck()
@@ -387,13 +387,11 @@ class GameView(QWidget):
     def __init__(self, game_model):
         super().__init__()
 
-        card_view1 = CardView(game_model.hand1)
-        card_view2 = CardView(game_model.hand2)
+        self.card_view1 = CardView(game_model.hand1)
+        self.card_view2 = CardView(game_model.hand2)
         card_view3 = CardView(game_model.dealer)
-        card_view1.setMaximumSize(card_view1.width()/2, 500)# self.viewport().height()-2*self.padding)/313
-        card_view2.setMaximumSize(card_view2.viewport().width()/2, 500)
-
-        # Creating a small demo window to work with, and put the card_view inside:
+        self.card_view1.setMaximumSize(350, 500)
+        self.card_view2.setMaximumSize(350, 500)
 
         self.labels = [QLabel(), QLabel(), QLabel()]
 
@@ -402,11 +400,11 @@ class GameView(QWidget):
         table_layout = QVBoxLayout()
         player1 = QVBoxLayout()
         player1.addWidget(QLabel(game_model.players[0]))
-        player1.addWidget(card_view1)
+        player1.addWidget(self.card_view1)
         player1.addWidget(self.labels[0])
         player2 = QVBoxLayout()
         player2.addWidget(QLabel(game_model.players[1]))
-        player2.addWidget(card_view2)
+        player2.addWidget(self.card_view2)
         player2.addWidget(self.labels[1])
         dealer = QVBoxLayout()
         dealer.addWidget(QLabel("Dealer"))
@@ -415,13 +413,16 @@ class GameView(QWidget):
         button = [QPushButton("Check/Call"), QPushButton("Fold"), QPushButton("Raise")]
         butt = buttons(button)
         self.players_turn = QLabel()
+        self.pot = QLabel()
+        self.pot.setText("The pot is currently: 0")
         self.sld = QSlider(Qt.Horizontal)
 
         self.sld.setValue(0)
-        # self.sld.setPageStep(50)
+        self.sld.setPageStep(50)
 
         button_box.addLayout(butt.layout)
         button_box.addWidget(self.players_turn)
+        button_box.addWidget(self.pot)
 
         # sldLabel = #QLabel("bet: {}".format(1000))
         button_box.addWidget(self.labels[2])  # sldLabel)
@@ -443,8 +444,6 @@ class GameView(QWidget):
         self.update_labels()
         game_model.new_total.connect(self.update_labels)
         game_model.winner.connect(self.alert_winner)
-        #game_model.read_players.connect(self.read_players)
-        # game_model.read_players.connect(self.read_players)
 
         # controller
         def check_call_click():
@@ -464,6 +463,7 @@ class GameView(QWidget):
         self.sld.valueChanged.connect(slider)
 
     def update_labels(self):
+        self.pot.setText("The pot is currently: " + str(self.game.pot))
         for i in range(len(self.labels)):
             self.labels[i].setText(str(self.game.total[i]))
         self.players_turn.setText("Player " + str(self.game.players[self.game.which_player]) + "'s turn.")
@@ -523,9 +523,9 @@ class ReadPlayers(QDialog):
         return self.name1.text(), int(self.cash1.text()), self.name2.text(), int(self.cash2.text())
 
     @staticmethod
-    def getDateTime():
+    def get_names_and_cash():
         dialog = ReadPlayers()
-        result = dialog.exec_()
+        dialog.exec_()
         inputs = dialog.get_inputs()
         return inputs
 
@@ -534,7 +534,7 @@ class ReadPlayers(QDialog):
 
 
 app = QApplication(sys.argv)
-players_info = ReadPlayers.getDateTime()
+players_info = ReadPlayers.get_names_and_cash()
 game = TexasHold(players_info[0], players_info[2], players_info[1], players_info[3])
 view = GameView(game)
 
